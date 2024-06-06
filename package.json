@@ -1,0 +1,24 @@
+{
+  "name": "generatephngroup",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@evanion/luhn": "^2.0.1",
+    "dotenv": "^16.4.5",
+    "ejs": "^3.1.10",
+    "express": "^4.19.2",
+    "express-session": "^1.18.0",
+    "keycloak-backend": "^5.0.0",
+    "keycloak-connect": "^24.0.2",
+    "node-cron": "^3.0.3",
+    "pg": "^8.11.5",
+    "serve-favicon": "^2.5.0",
+    "uuid": "^9.0.1"
+  }
+}

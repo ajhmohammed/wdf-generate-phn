@@ -296,9 +296,9 @@ async function generatePhnArray() {
     // while(phnArrayList.length <= 5){
 
         const generatedPhn = await generatePhn();
-
-        console.log("Generated PHN: " + generatedPhn);
         const generatedPhnPhrase = generatedPhn.phrase.toUpperCase()
+
+        console.log("Generated PHN: " + generatedPhnPhrase);
 
         if(generatedPhn.isValid == true) {
 

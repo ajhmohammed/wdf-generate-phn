@@ -222,6 +222,7 @@ async function getAvailablePoi() {
         if(rows.length === 0) {
             // return 'No active poi(s) are available on the database.';
             console.log(`PROCESS: \t ${new Date().toLocaleString()} \t No active poi(s) are available on the database`)
+            process.exit(1);
         } else {
             console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Obtained available pois`)
 

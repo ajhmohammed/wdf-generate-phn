@@ -220,7 +220,8 @@ async function getAvailablePoi() {
         const { rows } = await pool.query(query);
         
         if(rows.length === 0) {
-            return 'No active poi(s) are available on the database.';
+            // return 'No active poi(s) are available on the database.';
+            console.log(`PROCESS: \t ${new Date().toLocaleString()} \t No active poi(s) are available on the database`)
         } else {
             console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Obtained available pois`)
 

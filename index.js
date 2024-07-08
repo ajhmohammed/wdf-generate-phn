@@ -12,7 +12,9 @@ const app = express()
 dotenv.config()
 
 const logFileName = 'logs.txt'
-var logMessage = "";
+var logMessage = "Started Node app";
+
+fs.appendFile(logFileName, logMessage, function (err) {})
 
 const pool = new Pool({
     user: process.env.DB_USER,

@@ -9,6 +9,7 @@
 # Ignore logs and temporary files
 logs/
 tmp/
+logs.txt
 
 # Ignore environment-specific files
 node_modules

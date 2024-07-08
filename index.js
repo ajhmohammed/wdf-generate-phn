@@ -5,11 +5,14 @@ const http = require('node:http')
 const cron = require('node-cron')
 const { Luhn } = require('@evanion/luhn')
 const path = require('path')
-const { copyFileSync } = require('node:fs')
+var fs = require('node:fs')
 const { v4: uuidv4 } = require('uuid')
 const dotenv = require('dotenv')
 const app = express()
 dotenv.config()
+
+const logFileName = 'logs.txt'
+var logMessage = "";
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -44,20 +47,24 @@ const getPractitionerCount = async function(req, res) {
     const url = process.env.HAPI_BASE_URL+'/Practitioner/?_summary=count';
 
     try {
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         const response = await fetch(url, options)
         const jsonResponse = await response.json();
         // console.log(`Total No. of Practitioners: ${jsonResponse.total}`);
 
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Total number of Practitioners: ${jsonResponse.total}`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Total number of Practitioners: ${jsonResponse.total} \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         return (jsonResponse.total);
 
         // return 5;
 
     } catch(err) {
-        console.log('ERROR ', err);
+        // console.log('ERROR ', err);
+        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
     }
 
     
@@ -85,7 +92,8 @@ const getAllPractitionersId = async function(req, res) {
 
     try {
 
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Started fetching all Practitioners`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started fetching all Practitioners \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         const response = await fetch(url, options)
         const jsonResponse = await response.json();
@@ -100,26 +108,19 @@ const getAllPractitionersId = async function(req, res) {
 
             const thisPractitionerId = practitionerIds.resource.id;
 
-            console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Fetched Practitioner: ${thisPractitionerId}`)
+            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetched Practitioner: ${thisPractitionerId} \n`
+            fs.appendFile(logFileName, logMessage, function (err) {})
 
             practitionerIdListArray.push(thisPractitionerId);
             
-
-            // getPractitionerPhnGroupCount().then(x => {
-                // console.log(a++, thisPractitionerId, getPractitionerPhnGroupCount());
-            // })
-
-            // console.log(a++, thisPractitionerId, getPractitionerPhnGroupCount());
-            // console.log(practitionerIds.resource.id);
-        }
-
-       
+        }       
 
         return practitionerIdListArray;
 
         // return (jsonResponse.total);
     } catch(err) {
-        console.log('ERROR ', err);
+        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
     }
 }
 
@@ -131,11 +132,13 @@ const getPractitionerList = async function(req, res) {
     var a = 0;
     let finalPractitionerList = [];
 
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Started identifying the Practitioners need to generate the PHN Group`)
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started identifying the Practitioners need to generate the PHN Group \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 
     for await (const practitionerIds of allPractitionerIds) {
 
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Checking Practitioner: ${practitionerIds}`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Checking Practitioner: ${practitionerIds} \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         const getGroupCount = async function(req, res) {
 
@@ -186,10 +189,10 @@ const getPractitionerList = async function(req, res) {
                 } else {
                     return 0;
                 }
-
-                
+    
             } catch(err) {
-                console.log('ERROR ', err);
+                logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
+                fs.appendFile(logFileName, logMessage, function (err) {})
             }
 
             
@@ -203,7 +206,8 @@ const getPractitionerList = async function(req, res) {
 
     }
 
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Ended identifying the list of Practitioners need PHN Group(s)`)
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Ended identifying the list of Practitioners need PHN Group(s) \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 
     return finalPractitionerList;   
 
@@ -221,23 +225,29 @@ async function getAvailablePoi() {
         
         if(rows.length === 0) {
             // return 'No active poi(s) are available on the database.';
-            console.log(`PROCESS: \t ${new Date().toLocaleString()} \t No active poi(s) are available on the database`)
+            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t No active poi(s) are available on the database \n`
+            fs.appendFile(logFileName, logMessage, function (err) {})
+
             process.exit(1);
         } else {
-            console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Obtained available pois`)
+            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Obtained available pois \n`
+            fs.appendFile(logFileName, logMessage, function (err) {})
 
             return rows[0]['poinumber'];
         }
 
     } catch (err) {
-        console.error(err);
-        return 'failed to fetch poi(s)';
+        // console.error(err);
+        // return 'failed to fetch poi(s)';
+        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err failed to fetch pois \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
     }
 }
 
 async function generatePhn() {
 
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Generating PHNs`)
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generating PHNs \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 
     const poi = await getAvailablePoi();
 
@@ -259,18 +269,6 @@ async function generatePhn() {
 
     const finalPhn = (initialPhn + checksum).toUpperCase();
     const finalPhnValidation = Luhn.validate(finalPhn);
-
-    // console.log('POI: ' + poi);
-    // console.log('Random String: ' + randomString);
-    // console.log('Inital PHN: ' + initialPhn);
-    // console.log('Luhn Output: ', luhnCheck);
-    // console.log('Checksum: ' + checksum);
-    // console.log('Final PHN: ' + finalPhn);
-    // console.log('Final PHN Valid: ', finalPhnValidation);
-
-    // if (finalPhnValidation.isValid === true) {
-        // return finalPhnValidation;
-    // }
 
     const chars = "2346789BCDFGHJKMPQRTVWXY";
 
@@ -300,7 +298,8 @@ async function generatePhnArray() {
         const generatedPhn = await generatePhn();
         const generatedPhnPhrase = generatedPhn.phrase.toUpperCase()
 
-        console.log("Generated PHN: " + generatedPhnPhrase);
+        logMessage = `Generated PHN:  + ${generatedPhnPhrase}  \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         if(generatedPhn.isValid == true) {
 
@@ -335,17 +334,12 @@ async function generatePhnArray() {
     
     }
 
-    const UpdateGeneratedPhnCount =   `
-        UPDATE pois SET phnGenerated = phnGenerated + 100;
-    `;
+    const UpdateGeneratedPhnCount = `UPDATE pois SET phnGenerated = phnGenerated + 100;`;
 
     const result = await pool.query(UpdateGeneratedPhnCount);
 
-    // let phnArrayListStringy = JSON.stringify(phnArrayList)
-    // let finalphnArrayListStringy = phnArrayListStringy.substring(1, phnArrayListStringy.length-1)
-    // return JSON.stringify(finalphnArrayListStringy);
-
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Generated the PHN Group(s)`)
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generated the PHN Group(s) \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 
     return phnArrayList;
 }
@@ -357,14 +351,16 @@ async function fetchPractitionerDetailResource() {
 
     let practitionerMetaInfo = [];
 
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Started fetching PractitionerDetail resource`)
-
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started fetching PractitionerDetail resource \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
+    
     for await (const practList of practitionersList) {
 
         const practitionerId = practList.id;
         const phnGroupCount = practList.count;
 
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Fetching PractitionerDetail for ${practitionerId}`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetching PractitionerDetail for ${practitionerId} \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         const accessToken = await keycloak.accessToken.get();
 
@@ -387,11 +383,7 @@ async function fetchPractitionerDetailResource() {
             const teams = jsonResponse.entry[0].resource.fhir.teams;
 
             if(careTeams !== undefined && locations !== undefined && teams !== undefined) {
-                // console.log(`Practitioner Id: ${practitionerId}`)
-                // console.log(`\t CareTeam: ${careTeams[0].id}`)
-                // console.log(`\t Location: ${locations[0].id}`)
-                // console.log(`\t Team: ${teams[0].id}`)
-
+                
                 const careTeamId = careTeams[0].id;
                 const locationId = locations[0].id;
                 const teamId = teams[0].id;
@@ -406,19 +398,17 @@ async function fetchPractitionerDetailResource() {
                     "phnGroupCount": phnGroupCount
                 })
 
-                // return practitionerMetaInfo;
-
-                // console.log(practitionerMetaInfo)
-
             }
             
         } catch(err) {
-            console.log('ERROR ', err);
+            logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
+            fs.appendFile(logFileName, logMessage, function (err) {})
         }
 
     }
 
-    console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Fetched PractitionerDetail Information`)
+    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetched PractitionerDetail Information  \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 
     return practitionerMetaInfo;
 
@@ -435,77 +425,6 @@ async function generatePhnBundle() {
     for await (const pdInfo of practionerDetails) {
     
         const phnGroupCount = pdInfo.phnGroupCount;
-
-        /*
-            async function generateIndividualBundle() {
-
-                var groupUUID = uuidv4();
-                let bundleArray = "";
-
-                bundleArray =
-                    {
-                        "fullUrl": `http://188.166.213.172:9002/fhir/Group/${groupUUID}`,
-                        "resource": {
-                            "resourceType": "Group",
-                            "id": `${groupUUID}`,
-                            "meta": {
-                                "tag": [
-                                    {
-                                        "system": "https://smartregister.org/care-team-tag-id",
-                                        "code": `${pdInfo.careTeamId}`,
-                                        "display": "Practitioner CareTeam"
-                                    },
-                                    {
-                                        "system": "https://smartregister.org/location-tag-id",
-                                        "code": `${pdInfo.locationId}`,
-                                        "display": "Practitioner Location"
-                                    },
-                                    {
-                                        "system": "https://smartregister.org/organisation-tag-id",
-                                        "code": `${pdInfo.teamId}`,
-                                        "display": "Practitioner Organization"
-                                    },
-                                    {
-                                        "system": "https://smartregister.org/app-version",
-                                        "code": `${pdInfo.applicationVersion}`,
-                                        "display": "Application Version"
-                                    },
-                                    {
-                                        "system": "https://smartregister.org/practitioner-tag-id",
-                                        "code": `${pdInfo.practitionerId}`,
-                                        "display": "Practitioner"
-                                    }
-                                ]
-                            },
-                            "identifier": [
-                                {
-                                    "system": "http://smartregister.org",
-                                    "value": `${groupUUID}`
-                                }
-                            ],
-                            "active": true,
-                            "type": "device",
-                            "actual": true,
-                            "name": "Unique IDs",
-                            "quantity": 100,
-                            "managingEntity": {
-                                "reference": `Practitioner/${pdInfo.practitionerId}`,
-                            },
-                            "characteristic": getPhnArry,
-                        },
-                        "search": {
-                            "mode": "match"
-                        },
-                        "request": {
-                            "method": "PUT",
-                            "url": `Group/${groupUUID}`
-                        }
-                    }
-
-            //    return JSON.stringify(bundleArray);
-            return bundleArray;
-            }
-        */
 
         // Count to identify how many phn groups to be generated
         for (i = phnGroupCount; i < 2; i++) {
@@ -576,19 +495,8 @@ async function generatePhnBundle() {
                 }
 
             entry.push(bundleArray)
-            // const individualBundle = await generateIndividualBundle();
-            // // console.log(individualBundle);
-
-            // // let individualBundleStringy = JSON.stringify(individualBundle)
-            // // let individualBundleStringyFinal = (individualBundleStringy.substring(1, individualBundleStringy.length-1));
-
-            // bundleArray.push(individualBundle)
-
-            
             
         }
-
-        // console.log(entry);
 
     }
 
@@ -601,12 +509,11 @@ async function generatePhnBundle() {
             "entry": entry
         }
 
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Generated the bundle succesfully`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generated the bundle succesfully \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         return bundleOutput
 }
-
-// generatePhnBundle();
 
 // Post the bundle to the server
 const postBundle = async function(req, res) {
@@ -627,57 +534,30 @@ const postBundle = async function(req, res) {
     const url = process.env.HAPI_BASE_URL;
 
     try {
-        console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count`)
+        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
 
         const response = await fetch(url, options)
         const jsonResponse = await response.json();
         console.log(jsonResponse);
 
-        // console.log(`PROCESS: \t ${new Date().toLocaleString()} \t Total number of Practitioners: ${jsonResponse.total}`)
-
-        // return (jsonResponse.total);
-
-        // return 5;
-
     } catch(err) {
-        console.log('ERROR ', err);
+        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
+        fs.appendFile(logFileName, logMessage, function (err) {})
     }
 
-    // return JSON.stringify(phnBundle);
-    // return phnBundle;
 }
-
-
-// app.use(express.json());
-
-
-// app.get('/', (req, res) => {
-
-//     postBundle();
-
-//     res.send('loaded');   
-
-//     // getPractitioners()
-//     // res.status(200).json(getPractitioners());
-//     // req.write('data\n');
-//     // req.write('data\n');
-//     // req.end();
-// })
 
 // postBundle();
 
 function logMessage() {
-    console.log('Cron job executed at:', new Date().toLocaleString());
-
-    postBundle();
-
-    // getPractitionerCount().then(x => {
-    //     console.log(x);
-    // })
+    logMessage = `Cron job executed at:, ${new Date().toLocaleString()} \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})    
 }
 
 cron.schedule('*/2 * * * *', () => {
     logMessage();
+    postBundle();
 });
 
 app.listen(process.env.PORT, () => {

@@ -647,231 +647,38 @@ const postBundle = async function(req, res) {
     // return phnBundle;
 }
 
-postBundle();
 
-// generatePhnBundle().then(x => {
-//     console.dir(x, {depth: null});
-// })
+// app.use(express.json());
 
-// loop through each resource
-
-// function logMessage() {
-//     console.log('Cron job executed at:', new Date().toLocaleString());
-
-    // getPractitionerList().then(x => {
-    //     console.log(x);
-    // })
-// }
-
-// cron.schedule('* * * * *', () => {
-//     logMessage();
-// });
-
-// getPractitionerList();
-
-
-
-// Function to get all the practitioners id
-
-/*
-    Infos needed
-        - Practitioner ID: Practitioner
-        - PractitionerCareTeam ID
-        - Practitioner Location ID
-        - Application Version 
-        - Practitioner Organization ID: PractitionerRole
-*/
-
-// getPractitionerCount().then(x => {
-//     console.log(x);
-// })
-
-
-
-// async function getAccessToken() {
-    // const accessToken = await keycloak.accessToken.get();
-
-    // console.log(accessToken);
-    // return accessToken;
-// }
-
-// getAccessToken();
-
-// console.log(getAccessToken());
-
-// const options = {
-//     hostname: '188.166.213.172',
-//     port: 9002,
-//     path: '/fhir/',
-//     method: 'GET',
-//     headers: {
-//     //     'Content-Type': 'application/json',
-//     //     'Content-Length': Buffer.byteLength(postData),
-//         Authorization: ` Bearer ${getAccessToken()}`
-//     },
-// }
-
-// const req = http.request(options, (res) => {
-//     console.log(`STATUS: ${res.statusCode}`);
-//     console.log(`HEADERS: ${JSON.stringify(res.headers)}`);
-//     res.setEncoding('utf8');
-//     res.on('data', (chunk) => {
-//         console.log(`BODY: ${chunk}`);
-//     });
-
-//     req.on('end', () => {
-//         console.log('No more data in response');
-//     });
-// });
-
-// req.on('error', function(e) {
-//     console.log('Problem with request: ' + e.message);
-// });
-
-// req.write('data\n');
-// req.write('data\n');
-// req.end();
-
-app.use(express.json());
-
-
-app.get('/', (req, res) => {
-    // getPractitioners()
-    // res.status(200).json(getPractitioners());
-    // req.write('data\n');
-    // req.write('data\n');
-    // req.end();
-})
-
-// async function createPhnTable() {
-//     try {
-//         const query = `
-//             CREATE TABLE IF NOT EXISTS albums (
-//                 id SERIAL PRIMARY KEY,
-//                 title VARCHAR(255) NOT NULL,
-//                 artist VARCHAR(255) NOT NULL,
-//                 price NUMERIC(10, 2)
-//             );
-//         `;
-
-//         await pool.query(query);
-//         console.log('Album table created');
-//     } catch (err) {
-//         console.error(err);
-//         console.error('Album table creation failed');
-//     }
-// }
-
-// createPhnTable();
 
 // app.get('/', (req, res) => {
-//     res.send('Hello Node')
+
+//     postBundle();
+
+//     res.send('loaded');   
+
+//     // getPractitioners()
+//     // res.status(200).json(getPractitioners());
+//     // req.write('data\n');
+//     // req.write('data\n');
+//     // req.end();
 // })
 
-// app.post('/albums', async (req, res) => {
-//     // Validate the incoming JSON data
-//     const { title, artist, price } = req.body;
-//     console.log(req.body);
-//     if (!title || !artist || !price) {
-//         return res.status(400).send('One of the title, or artist, or price is missing in the data');
-//     }
+// postBundle();
 
-//     try {
-//         // try to send data to the database
-//         const query =   `
-//             INSERT INTO albums (title, artist, price)
-//             VALUES ($1, $2, $3)
-//             RETURNING id;
-//         `;
+function logMessage() {
+    console.log('Cron job executed at:', new Date().toLocaleString());
 
-//         const values = [title, artist, price];
+    postBundle();
 
-//         const result = await pool.query(query, values);
-//         res.status(201).send({
-//             message: 'New Album created',
-//             albumId: result.rows[0].id
-//         });
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('Some error has occured');
-//     }
-// });
+    // getPractitionerCount().then(x => {
+    //     console.log(x);
+    // })
+}
 
-// app.get('/albums', async (req, res) => {
-//     try {
-//         const query = 'SELECT * FROM albums;';
-//         const { rows } = await pool.query(query);
-//         res.status(200).json(rows);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('failed');
-//     }
-// });
-
-// app.get('/albums/:id', async (req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const query = 'SELECT * FROM albums WHERE id = $1;';
-//         const { rows } = await pool.query(query, [id]);
-        
-//         if(rows.length === 0) {
-//             return res.status(404).send('This albums is not in the database');
-//         }
-
-//         res.status(200).json(rows[0]);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('failed');
-//     }
-// });
-
-// app.put('/albums/:id', async (req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const { title, artist, price } = req.body;
-
-//         if (!title && !artist && !price) {
-//             return res.status(400).send('Provide a field (title, artist or price)');
-//         }
-
-//         const query = `
-//             UPDATE albums
-//             SET title = COALESCE($1, title), 
-//                 artist = cOALESCE($2, artist),
-//                 price = COALESCE($3, price)
-//             WHERE id = $4
-//             RETURNING *;
-//         `;
-
-//         const { rows } = await pool.query(query, [title, artist, price, id]);
-
-//         if (rows.length === 0) {
-//             return res.status(404).send('Cannot find anything');
-//         }
-
-//         res.status(200).json(rows[0]);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('Some error has occured failed');
-//     }
-// });
-
-// app.delete('/albums/:id', async (req, res) => {
-//     try {
-//         const { id } = req.params;
-//         const query = 'DELETE FROM albums WHERE id = $1 RETURNING *;';
-//         const { rows } = await pool.query(query, [id]);
-
-//         if (rows.length === 0) {
-//             return res.status(404).send('Album does not found');
-//         }
-
-//         res.status(200).json(rows[0]);
-//     } catch (err) {
-//         console.error(err);
-//         res.status(500).send('Some error has occourded');
-//     }
-// });
+cron.schedule('*/2 * * * *', () => {
+    logMessage();
+});
 
 app.listen(process.env.PORT, () => {
     (process.env.NODE_ENV !== 'prod') ? console.log(`Listening on port ${process.env.PORT}`): ''

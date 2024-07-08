@@ -562,6 +562,11 @@ cron.schedule('*/2 * * * *', () => {
     postBundle();
 });
 
+cron.schedule('* * * * *', () => {
+    logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
+});
+
 app.listen(process.env.PORT, () => {
     (process.env.NODE_ENV !== 'prod') ? console.log(`Listening on port ${process.env.PORT}`): ''
 })

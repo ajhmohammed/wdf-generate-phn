@@ -12,7 +12,7 @@ const app = express()
 dotenv.config()
 
 const logFileName = 'logs.txt'
-var logMessage = "Started Node app";
+var logMessage = `Started Node app ${new Date().toLocaleString()}`;
 
 fs.appendFile(logFileName, logMessage, function (err) {})
 

@@ -1,4 +1,5 @@
 const express = require('express')
+const app = express()
 const { Pool } = require('pg')
 const Keycloak = require('keycloak-backend').Keycloak
 const http = require('node:http')
@@ -8,7 +9,7 @@ const path = require('path')
 var fs = require('node:fs')
 const { v4: uuidv4 } = require('uuid')
 const dotenv = require('dotenv')
-const app = express()
+
 dotenv.config()
 
 app.use(express.json());

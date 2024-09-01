@@ -12,7 +12,9 @@ const app = express()
 dotenv.config()
 
 const logFileName = 'logs.txt'
-var logMessage = "";
+var logMessage = `Started Node app ${new Date().toLocaleString()} \n`;
+
+fs.appendFile(logFileName, logMessage, function (err) {})
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -555,9 +557,14 @@ function logMessage() {
     fs.appendFile(logFileName, logMessage, function (err) {})    
 }
 
-cron.schedule('*/2 * * * *', () => {
+cron.schedule('0 0 */2 * * *', () => {
     logMessage();
     postBundle();
+});
+
+cron.schedule('* * * * *', () => {
+    logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
+    fs.appendFile(logFileName, logMessage, function (err) {})
 });
 
 app.listen(process.env.PORT, () => {

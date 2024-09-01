@@ -559,7 +559,7 @@ function logMessage() {
     fs.appendFile(logFileName, logMessage, function (err) {})    
 }
 
-cron.schedule('*/2 * * * *', () => {
+cron.schedule('0 0 */2 * * *', () => {
     logMessage();
     postBundle();
 });

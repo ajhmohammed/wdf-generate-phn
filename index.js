@@ -569,13 +569,13 @@ cron.schedule('* * * * *', () => {
     fs.appendFile(logFileName, logMessage, function (err) {})
 });
 
-app.get('/referredClients', (req, res) => {   
+app.get('/generatePhn', (req, res) => {   
 
     postBundle().then(x => {
         // Send the sms
     })
 
-    res.send('loaded referredClients');    
+    res.send('Running');    
     
 })
 

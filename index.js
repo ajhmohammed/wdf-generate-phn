@@ -11,6 +11,8 @@ const dotenv = require('dotenv')
 const app = express()
 dotenv.config()
 
+app.use(express.json());
+
 const logFileName = 'logs.txt'
 var logMessage = `Started Node app ${new Date().toLocaleString()} \n`;
 
@@ -566,6 +568,17 @@ cron.schedule('* * * * *', () => {
     logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
     fs.appendFile(logFileName, logMessage, function (err) {})
 });
+
+app.get('/referredClients', (req, res) => {   
+
+    postBundle().then(x => {
+        // Send the sms
+    })
+
+    res.send('loaded referredClients');    
+    
+})
+
 
 app.listen(process.env.PORT, () => {
     (process.env.NODE_ENV !== 'prod') ? console.log(`Listening on port ${process.env.PORT}`): ''

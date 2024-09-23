@@ -20,7 +20,7 @@ app.use(express.json());
 let phnGroupLimit = 2; //Limit the number of PHN groups a practitioner could have at a time
 let resourceProcessLimit = 10; // Limit the number of practitioners processed at a time
 let maxPhnPerPoi = 1000000; // Maximum PHN could be generated per POI (HIU Guideline)
-let phnPerGroupLimit = 2; // How many PHN a group can have
+let phnPerGroupLimit = 100; // How many PHN a group can have
 let createDb = false;
 let createTables = false;
 

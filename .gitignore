@@ -10,11 +10,14 @@
 logs/
 tmp/
 logs.txt
+log.txt
 
 # Ignore environment-specific files
+package-lock.json
 node_modules
 .env
 
 # Ignore sensitive information
 keycloak.json
 tests
+todo

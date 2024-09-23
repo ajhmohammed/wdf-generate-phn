@@ -1,5 +1,5 @@
-const express = require('express')
-const app = express()
+const express = require('express');
+const app = express();
 const { Pool } = require('pg')
 const Keycloak = require('keycloak-backend').Keycloak
 const http = require('node:http')
@@ -7,17 +7,22 @@ const cron = require('node-cron')
 const { Luhn } = require('@evanion/luhn')
 const path = require('path')
 var fs = require('node:fs')
+const logging = require('./logging')
 const { v4: uuidv4 } = require('uuid')
 const dotenv = require('dotenv')
-
+const getFhirResource = require('./getFhirResource')
+const keycloakAuth = require('./keycloakAuth')
 dotenv.config()
 
 app.use(express.json());
 
-const logFileName = 'logs.txt'
-var logMessage = `Started Node app ${new Date().toLocaleString()} \n`;
-
-fs.appendFile(logFileName, logMessage, function (err) {})
+// Input variables
+let phnGroupLimit = 2; //Limit the number of PHN groups a practitioner could have at a time
+let resourceProcessLimit = 10; // Limit the number of practitioners processed at a time
+let maxPhnPerPoi = 1000000; // Maximum PHN could be generated per POI (HIU Guideline)
+let phnPerGroupLimit = 2; // How many PHN a group can have
+let createDb = false;
+let createTables = false;
 
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -27,420 +32,423 @@ const pool = new Pool({
     port: process.env.DB_PORT,
 });
 
-const keycloak = new Keycloak({
-    "realm": process.env.KC_REALM,
-    "keycloak_base_url": process.env.KC_BASE_URL,
-    "client_id": process.env.KC_CLIENT_ID,
-    "username": process.env.KC_USERNAME,
-    "password": process.env.KC_PASSWORD,        
-    "is_legacy_endpoint": process.env.KC_IS_LEGACY_ENDPOINT
-});
+// Fetching all available practitioners
+const getAllPractitioners = async function() {
 
-
-// Function to get the total number of practitioners
-const getPractitionerCount = async function(req, res) {
-
-    const accessToken = await keycloak.accessToken.get();
-
-    const options = {
-        method: 'GET',
-        headers: {
-            Authorization: ` Bearer ${accessToken}`
-        }
-    }
-
-    const url = process.env.HAPI_BASE_URL+'/Practitioner/?_summary=count';
-
-    try {
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-
-        const response = await fetch(url, options)
-        const jsonResponse = await response.json();
-        // console.log(`Total No. of Practitioners: ${jsonResponse.total}`);
-
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Total number of Practitioners: ${jsonResponse.total} \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-
-        return (jsonResponse.total);
-
-        // return 5;
-
-    } catch(err) {
-        // console.log('ERROR ', err);
-        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-    }
-
-    
-}
-
-// getPractitionerCount();
-
-const getAllPractitionersId = async function(req, res) {
-
-    const accessToken = await keycloak.accessToken.get();
-
-    const options = {
-        method: 'GET',
-        headers: {
-            Authorization: ` Bearer ${accessToken}`
-        }
-    }
-
-    const totalPractitionerCount = await getPractitionerCount();
-    
-    const url = process.env.HAPI_BASE_URL+`/Practitioner?_count=${totalPractitionerCount}`;
-
-    let practitionerJsonArray = [];
-    let practitionerIdListArray = [];
+    logging('Info', `Started fetching all Practitioners`)
 
     try {
 
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started fetching all Practitioners \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
+        const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true")
 
-        const response = await fetch(url, options)
-        const jsonResponse = await response.json();
-        // console.log(jsonResponse.entry.);
-        practitionerJsonArray.push(jsonResponse.entry);
-        // console.log(practitionerJsonArray[0][0]);
+        returnArray = []
 
-        // var a = 1;
+        if(getPractitioner && getPractitioner.status == true) {
 
-        for(const practitionerIds of practitionerJsonArray[0]) {
-            // console.log(a++);
+            getPractitioner.response.entry.forEach(item => {
+                logging('Info', `Adding Practitioner to array. Practitioner ID: ${item.resource.id}`)
 
-            const thisPractitionerId = practitionerIds.resource.id;
+                let returnResult = "";
 
-            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetched Practitioner: ${thisPractitionerId} \n`
-            fs.appendFile(logFileName, logMessage, function (err) {})
-
-            practitionerIdListArray.push(thisPractitionerId);
-            
-        }       
-
-        return practitionerIdListArray;
-
-        // return (jsonResponse.total);
-    } catch(err) {
-        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-    }
-}
-
-// Get the list of practitioners for whom the PHN group needs to be generated
-const getPractitionerList = async function(req, res) {
-
-    const allPractitionerIds = await getAllPractitionersId();
-
-    var a = 0;
-    let finalPractitionerList = [];
-
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started identifying the Practitioners need to generate the PHN Group \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
-
-    for await (const practitionerIds of allPractitionerIds) {
-
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Checking Practitioner: ${practitionerIds} \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-
-        const getGroupCount = async function(req, res) {
-
-            const accessToken = await keycloak.accessToken.get();
-
-            const options = {
-                method: 'GET',
-                headers: {
-                    Authorization: ` Bearer ${accessToken}`
+                returnResult = {
+                    practitionerId: item.resource.id
                 }
-            }
 
-            // (type: device, status: active)
-            const url = process.env.HAPI_BASE_URL+`/Group?managing-entity=Practitioner/${practitionerIds}&type=device`;
+                returnArray.push(returnResult)
+            })
+        }
 
-            let practitionerGroupJsonArray = [];
+        return returnArray
 
-            try {
+    } catch(err) {
+        logging('Error', `Error in fetching Practioners: ${err}`)
+        return false;
+    }
+    
+}
 
-                const response = await fetch(url, options)
-                const jsonResponse = await response.json();
+// Extract the Practioners id to whom the PHN groups needs to be generated
+const extractPrationerIds = async function() {
 
-                if (jsonResponse.entry !== undefined) {
+    const allPractitionerIds = await getAllPractitioners()
 
-                    // Check the status is active
-                    practitionerGroupJsonArray.push(jsonResponse.entry);
+    try {
 
-                    // if the returned result has more than one group
-                    if (practitionerGroupJsonArray[0].length > 1) {
+        if(allPractitionerIds) {
+            
+            logging('Info', `Started Identifiying Practitioners need PHN group to be generated`)
 
-                        let groupActiveCount = 0;
-                        for(const groupJsonsArr of practitionerGroupJsonArray[0]) {
-                            if(groupJsonsArr.resource.active === true) {
-                                groupActiveCount++;
+            const promises = allPractitionerIds.map(async (item, index) => {
+
+                logging('Info', `Fetching Groups for Practitioner resource: ${item.practitionerId}`)
+
+                //search for active=true is not supported by fhir server
+                const getGroupBundle = await getFhirResource("GET", "Group", "", `managing-entity=Practitioner/${item.practitionerId}&type=device`)
+
+                logging('Info', `Started Querying for PractionerDetails for Practitioner ID: ${item.practitionerId}`)
+                
+                // Fetch PractitionerDetail
+                const getPractitionerDetail = await getFhirResource("GET", "PractitionerDetail", "", `keycloak-uuid=${item.practitionerId}`)
+                    
+                if(getGroupBundle && getPractitionerDetail && getPractitionerDetail.status == true) {
+                    
+                    let phnGroupCounts = 0;
+
+                    // if the status is true, then fetch each entry and get the status count
+                    if(getGroupBundle.status == true) {
+
+                        getGroupBundle.response.entry.forEach((groupStatusCheck) => {
+                            if(groupStatusCheck.resource.active == true) {
+                                phnGroupCounts++
                             }
-                        }
+                        })
 
-                        return groupActiveCount;
-
-                    } else {
-                        if (practitionerGroupJsonArray[0][0].resource.active === true) {
-                            return 1;
-                        } else {
-                            return 0;
-                        }
+                    }
+                    
+                    if (getGroupBundle.status == false) {
+                        phnGroupCounts = 0;
                     }
 
-                } else {
-                    return 0;
+                    const careteams = getPractitionerDetail.response.entry[0].resource.fhir.careteams
+                        ? getPractitionerDetail.response.entry[0].resource.fhir.careteams : undefined
+                    const locations = getPractitionerDetail.response.entry[0].resource.fhir.locations
+                        ? getPractitionerDetail.response.entry[0].resource.fhir.locations : undefined
+                    const teams = getPractitionerDetail.response.entry[0].resource.fhir.teams
+                        ? getPractitionerDetail.response.entry[0].resource.fhir.teams : undefined
+
+                    if(careteams !== undefined && locations !== undefined && teams !== undefined) {
+
+                        const careteamId = careteams[0].id
+                        const locationId = locations[0].id
+                        const teamId = teams[0].id
+
+                        let returnResult = "";
+
+                        if (index < resourceProcessLimit && phnGroupCounts < phnGroupLimit) {
+
+                            returnResult = {
+                                practitionerId: item.practitionerId,
+                                phnGroupCount: phnGroupCounts,
+                                careTeamId: careteamId,
+                                locationId: locationId,
+                                teamId: teamId,
+                                // index: index
+                            }
+
+                            return returnResult;
+
+                        }
+                    }
+                
                 }
-    
-            } catch(err) {
-                logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
-                fs.appendFile(logFileName, logMessage, function (err) {})
-            }
 
-            
-        }
+            })
 
-        const getGroupCounts = await getGroupCount();
+            const results = await Promise.all(promises)
+            const returnedResults = results.filter(item => item !== undefined)
 
-        if(getGroupCounts < 2) {
-            finalPractitionerList.push({"id": practitionerIds, "count": await getGroupCount()});
-        }
+            return returnedResults
 
-    }
-
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Ended identifying the list of Practitioners need PHN Group(s) \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
-
-    return finalPractitionerList;   
-
-}
-
-// @TODO Insert status column for the poi
-// @TODO fetch one record from one poi
-// @TODO dynamic phn group (count)
-// @TODO PHN Count limit
-async function getAvailablePoi() {
-
-    try {
-        const query = 'SELECT * FROM pois';
-        const { rows } = await pool.query(query);
-        
-        if(rows.length === 0) {
-            // return 'No active poi(s) are available on the database.';
-            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t No active poi(s) are available on the database \n`
-            fs.appendFile(logFileName, logMessage, function (err) {})
-
-            process.exit(1);
         } else {
-            logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Obtained available pois \n`
-            fs.appendFile(logFileName, logMessage, function (err) {})
-
-            return rows[0]['poinumber'];
+            logging('Info', `No resources fetched from Practitioner Function`)
+            return false;
         }
 
-    } catch (err) {
-        // console.error(err);
-        // return 'failed to fetch poi(s)';
-        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err failed to fetch pois \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
+    } catch(err) {
+        logging('Error', `Error in getting funtion return for practitioners: ${err}`)
+        return false;
     }
 }
 
-async function generatePhn() {
+// Get Point of Issue 
+const getAvailablePoi = async function () {
 
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generating PHNs \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
+    if(createDb) {
 
-    const poi = await getAvailablePoi();
+        const createDb = new Pool({
+            user: process.env.DB_USER,
+            host: process.env.DB_HOST,
+            password: process.env.DB_PASSWORD,
+            port: process.env.DB_PORT,
+        });
 
-    const generateRandomString = function(length) {
-        const chars = "2346789BCDFGHJKMPQRTVWXY";
-        let result = "";
-    
-        for (let i = 0; i < length; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        
-        return result;
-    }
+        const checkDb = await createDb.connect()
 
-    const randomString = generateRandomString(6);
-    const initialPhn = (poi + randomString).toUpperCase();
-    const luhnCheck = Luhn.generate(initialPhn, false);
-    const checksum =  luhnCheck.checksum;  
+        // Create Database if not exists
+        try {
 
-    const finalPhn = (initialPhn + checksum).toUpperCase();
-    const finalPhnValidation = Luhn.validate(finalPhn);
+            const checkDbExists = await checkDb.query(
+                `SELECT 1 FROM pg_database WHERE datname = $1`, 
+                [process.env.DB_DATABASE]
+            )
 
-    const chars = "2346789BCDFGHJKMPQRTVWXY";
-
-    if (chars.includes(checksum.toUpperCase())) {
-        // console.log("YES");
-
-        return finalPhnValidation;
-    } else {
-        // console.log("NO");
-
-        finalPhnValidation.isValid = false;
-        
-        return finalPhnValidation;
-    }    
-    
-}
-
-async function generatePhnArray() {
-
-    let phnArrayList = [];
-
-    let ab = 0;
-
-    while(phnArrayList.length <= 99){
-    // while(phnArrayList.length <= 5){
-
-        const generatedPhn = await generatePhn();
-        const generatedPhnPhrase = generatedPhn.phrase.toUpperCase()
-
-        logMessage = `Generated PHN:  + ${generatedPhnPhrase}  \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-
-        if(generatedPhn.isValid == true) {
-
-            // Insert the PHN into the db and update the count at the end
-            const InsertPhns =   `
-                INSERT INTO phns (phn)
-                VALUES ($1)
-                RETURNING id;
-            `;
-
-            const phns = [generatedPhnPhrase];
-        
-            const result = await pool.query(InsertPhns, phns);
-
-            if(result.rowCount == 1) {
-
-                phnArrayList.push(
-                    {
-                        "code": {
-                            "text": "phn"
-                        }, 
-                        "valueCodeableConcept": {
-                            "text": generatedPhnPhrase
-                        },
-                        "exclude": false
-                    }
-                ); 
-
+            if(checkDbExists.rowCount === 0) {
+                await checkDb.query(`CREATE DATABASE ${process.env.DB_DATABASE};`)
+                logging("Info", `Created Database: ${process.env.DB_DATABASE}`)
             }
 
-        }   
-    
-    }
-
-    const UpdateGeneratedPhnCount = `UPDATE pois SET phnGenerated = phnGenerated + 100;`;
-
-    const result = await pool.query(UpdateGeneratedPhnCount);
-
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generated the PHN Group(s) \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
-
-    return phnArrayList;
-}
-
-// Get the PractitionerDetails
-async function fetchPractitionerDetailResource() {
-
-    const practitionersList = await getPractitionerList();
-
-    let practitionerMetaInfo = [];
-
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started fetching PractitionerDetail resource \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
-    
-    for await (const practList of practitionersList) {
-
-        const practitionerId = practList.id;
-        const phnGroupCount = practList.count;
-
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetching PractitionerDetail for ${practitionerId} \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-
-        const accessToken = await keycloak.accessToken.get();
-
-        const options = {
-            method: 'GET',
-            headers: {
-                Authorization: ` Bearer ${accessToken}`
-            }
+        } catch (error) {
+            logging("Error", `Error in creating Database ${error}`)
+        } finally {
+            checkDb.release();
         }
 
-        const url = process.env.HAPI_BASE_URL+`/PractitionerDetail?keycloak-uuid=${practitionerId}`;
+    }
+
+    if(createTables) {
+
+        const pool = await pool.connect()
+
+        // Create tables if not exists (if enabled)
+        try {
+
+            await pool.query(
+                `CREATE TABLE IF NOT EXISTS poi (
+                    id SERIAL PRIMARY KEY, 
+                    poi_number character varying(4) NOT NULL UNIQUE, 
+                    status character varying(20) NOT NULL,
+                    total_generated_phn_count integer NOT NULL,
+                    last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
+            )
+
+            logging("Info", `Created or skipped table poi`)
+
+        } catch (error) {
+            logging("Error", `Error in creating Database poi: ${error}`)
+        }
 
         try {
 
-            const response = await fetch(url, options)
-            const jsonResponse = await response.json();
+            await pool.query(
+                `CREATE TABLE IF NOT EXISTS phn (
+                    id SERIAL PRIMARY KEY, 
+                    generated_phn character varying(11) NOT NULL UNIQUE, 
+                    generated_for character varying(100),
+                    generated_on timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
+            )
 
-            const careTeams = jsonResponse.entry[0].resource.fhir.careteams;
-            const locations = jsonResponse.entry[0].resource.fhir.locations;
-            const teams = jsonResponse.entry[0].resource.fhir.teams;
+            logging("Info", `Created or skipped table phn`)
 
-            if(careTeams !== undefined && locations !== undefined && teams !== undefined) {
-                
-                const careTeamId = careTeams[0].id;
-                const locationId = locations[0].id;
-                const teamId = teams[0].id;
-                const applicationVersion = `Not defined`;                
-
-                practitionerMetaInfo.push({
-                    "practitionerId": practitionerId, 
-                    "careTeamId": careTeamId, 
-                    "locationId": locationId, 
-                    "teamId": teamId, 
-                    "applicationVersion": applicationVersion,
-                    "phnGroupCount": phnGroupCount
-                })
-
-            }
-            
-        } catch(err) {
-            logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
-            fs.appendFile(logFileName, logMessage, function (err) {})
+        } catch (error) {
+            logging("Error", `Error in creating Database phn: ${error}`)
+        } finally {
+            pool.release();
         }
 
     }
 
-    logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Fetched PractitionerDetail Information  \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
+    const connection = await pool.connect()
 
-    return practitionerMetaInfo;
+    // check for poi
+    try {
+
+        const query = `SELECT * FROM poi WHERE status = 'active' AND total_generated_phn_count < ${maxPhnPerPoi} ORDER BY id ASC`;
+        const { rows } = await connection.query(query);
+
+
+        if(rows.length > 0) {
+
+            logging("Info", `Fetched POI: ${rows[0]['poi_number']}, status: ${rows[0]['status']}, totalPhnGenerated: ${rows[0]['total_generated_phn_count']}`)
+
+            response = {
+                response: {
+                    poiNumber: rows[0]['poi_number'],
+                    status: rows[0]['status'],
+                    totalPhnGenerated: rows[0]['total_generated_phn_count']
+                },
+                status: true
+            }
+
+        } else {
+
+            logging("Info", `No POIs fetched from the db`)
+
+            response = {
+                status: false
+            }            
+
+        }
+
+        return response;
+
+    } catch (error) {
+        logging("Error", `Failed to fetch poi: ${error}`)
+    } finally {
+        connection.release()
+    }
 
 }
 
+// Generate PHN Number
+const generateUniquePhn = async function() {
 
-// Performance evaluation
-async function generatePhnBundle() {
+    logging('Info', `Started generating unique PHN`)
 
-    const practionerDetails = await fetchPractitionerDetailResource();
+    const poiResponse = await getAvailablePoi(maxPhnPerPoi);
+
+    if(poiResponse && poiResponse.status == true) {
+
+        poi = poiResponse.response.poiNumber
+        totalPhnGenerated = poiResponse.response.totalPhnGenerated
+
+        logging('Info', `Returned POI Info - POI Number: ${poi}`)
+
+        class MyLuhn extends Luhn {
+            static dictionary = "234567890BCDFGHJKMPQRTVWXY"
+            static sensitive = true
+        }
+
+        const generateRandomString = function(length) {
+            const chars = "2346789BCDFGHJKMPQRTVWXY";
+            let result = "";
+        
+            for (let i = 0; i < length; i++) {
+                result += chars.charAt(Math.floor(Math.random() * chars.length));
+            }
+            
+            return result;
+        }
+
+        const randomString = generateRandomString(6)
+        const initalPhn = poi + randomString
+        const checksum = MyLuhn.generate(initalPhn)
+        const validated = MyLuhn.validate((checksum.phrase + checksum.checksum).toUpperCase())
+
+        logging('Info', `Generated PHN String - randomString: ${randomString}, intialPhn: ${initalPhn}, checksum: ${checksum.checksum}, finalPhn: ${validated.phrase}, validation: ${validated.isValid}`)
+
+        let returnResult = "";
+
+        returnResult = {
+            poi: poi,
+            totalPhnGenerated: totalPhnGenerated,
+            randomString: randomString,
+            initalPhn: initalPhn,
+            checksum: checksum,
+            validation: validated
+        }
+
+        return returnResult;    
+
+    }
+
+}
+
+// Get PHN Array ready based on phnPerGroupLimit
+const generatePhnArray = async function() {
+
+    // Intialize return array
+    let returnArray = []
+
+    // loop through the number of phns needs to be generated per group
+    while(returnArray.length < phnPerGroupLimit) {
+
+        const getPhn = await generateUniquePhn()
+
+        let poi = getPhn.poi
+        let totalPhnGenerated = getPhn.totalPhnGenerated
+        let phn = getPhn.validation.phrase
+        let isValid = getPhn.validation.isValid
+
+        // Insert into db (if generated phn already exist, this should fail)
+        const connection = await pool.connect();
+
+        try {
+
+            const InsertPhn = `INSERT INTO phn (generated_phn) VALUES ($1);`;
+            const insertResult = await connection.query(InsertPhn, [phn])
+
+            if(insertResult.rowCount == 1) {
+
+                logging('Info', `PHN: ${phn} successfully inserted`)
+
+                // If db insertion success, then increment the generatedPhn count
+                totalPhnGenerated++
+
+                // update the db for the count if the totalPhnGenerated is < max value
+                if (totalPhnGenerated < maxPhnPerPoi) {
+
+                    const updatePoiCount = `UPDATE poi SET total_generated_phn_Count = $1 WHERE poi_number = $2;`;
+                    const updatePoiCountResult = await connection.query(updatePoiCount, [`${totalPhnGenerated}`, `${poi}`])
+
+                    if(updatePoiCountResult.rowCount == 1) {
+
+                        logging('Info', `Incremented the POI Generated count`)
+
+                    }
+
+                // update the db and change status to inactive if the totalPhnGenerated is not < max value
+                } else {
+
+                    const updatePoiStatus = `UPDATE poi SET status = $1, total_generated_phn_Count = $2 WHERE poi_number = $3;`;
+                    const updatePoiStatusResult = await connection.query(updatePoiStatus, [`inactive`,`${totalPhnGenerated}`, `${poi}`])
+
+                    if(updatePoiStatusResult.rowCount == 1) {
+
+                        logging('Info', `Update the Total phn generated and marked the status inactive`)
+
+                    }
+
+                }
+
+                // push to array
+                response = {
+                    "code": {
+                        "text": "phn"
+                    }, 
+                    "valueCodeableConcept": {
+                        "text": phn
+                    },
+                    "exclude": false
+                }
+        
+                returnArray.push(response)
+
+            }
+
+        } catch (error) {
+
+            logging('Error', `Something went wrong in query: ${error}`)
+
+        } finally {
+            connection.release()
+        }
+
+    }
+
+    return returnArray
+}
+
+// Create Bundle Array and post bundle
+const postPhnBundle = async function() {
 
     let entry = [];
 
-    for await (const pdInfo of practionerDetails) {
-    
-        const phnGroupCount = pdInfo.phnGroupCount;
+    logging('Info', `Getting Practioners from function`)
 
-        // Count to identify how many phn groups to be generated
-        for (i = phnGroupCount; i < 2; i++) {
+    // Fetch all the practioners need phn
+    const fetchedPractitioners = await extractPrationerIds();
 
-            const getPhnArry = await generatePhnArray();
+    if(fetchedPractitioners && fetchedPractitioners.length > 0) {
 
-            var groupUUID = uuidv4();
-            let bundleArray = "";
+        for await (const practitioner of fetchedPractitioners) {
 
-            bundleArray =
-                {
+            practitionerId = practitioner.practitionerId
+            phnGroupCount = practitioner.phnGroupCount
+            careTeamId = practitioner.careTeamId
+            locationId = practitioner.locationId
+            teamId = practitioner.teamId
+
+            // Count to identify how many phn groups to be generated
+            for (i = phnGroupCount; i < phnGroupLimit; i++) {
+
+                // Generate the PHN array (Build the PHN array)
+                const generatePhn = await generatePhnArray();
+
+                let groupUUID = uuidv4();
+
+                logging('Info', `Generating Group: ${groupUUID} for ${practitionerId}`)
+
+                phnArray = {
                     "fullUrl": process.env.HAPI_BASE_URL_BUNDLE+`/Group/${groupUUID}`,
                     "resource": {
                         "resourceType": "Group",
@@ -449,27 +457,22 @@ async function generatePhnBundle() {
                             "tag": [
                                 {
                                     "system": "https://smartregister.org/care-team-tag-id",
-                                    "code": `${pdInfo.careTeamId}`,
+                                    "code": `${careTeamId}`,
                                     "display": "Practitioner CareTeam"
                                 },
                                 {
                                     "system": "https://smartregister.org/location-tag-id",
-                                    "code": `${pdInfo.locationId}`,
+                                    "code": `${locationId}`,
                                     "display": "Practitioner Location"
                                 },
                                 {
                                     "system": "https://smartregister.org/organisation-tag-id",
-                                    "code": `${pdInfo.teamId}`,
+                                    "code": `${teamId}`,
                                     "display": "Practitioner Organization"
                                 },
                                 {
-                                    "system": "https://smartregister.org/app-version",
-                                    "code": `${pdInfo.applicationVersion}`,
-                                    "display": "Application Version"
-                                },
-                                {
                                     "system": "https://smartregister.org/practitioner-tag-id",
-                                    "code": `${pdInfo.practitionerId}`,
+                                    "code": `${practitionerId}`,
                                     "display": "Practitioner"
                                 }
                             ]
@@ -486,9 +489,9 @@ async function generatePhnBundle() {
                         "name": "Unique IDs",
                         "quantity": 0,
                         "managingEntity": {
-                            "reference": `Practitioner/${pdInfo.practitionerId}`,
+                            "reference": `Practitioner/${practitionerId}`,
                         },
-                        "characteristic": getPhnArry,
+                        "characteristic": generatePhn,
                     },
                     "search": {
                         "mode": "match"
@@ -499,13 +502,18 @@ async function generatePhnBundle() {
                     }
                 }
 
-            entry.push(bundleArray)
-            
+                entry.push(phnArray)
+
+            }       
+
         }
 
-    }
+        // return entry
 
+        // push in to bundle 
         var bundleUUID = uuidv4();
+
+        logging('Info', `Generating Bundle: ${bundleUUID}`)
 
         let bundleOutput = {
             "resourceType": "Bundle",
@@ -514,65 +522,69 @@ async function generatePhnBundle() {
             "entry": entry
         }
 
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Generated the bundle succesfully \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
+        // return bundleOutput
 
-        return bundleOutput
+        // post the bundle
+
+        const accessToken = await keycloakAuth.accessToken.get();
+
+        const options = {
+            method: 'POST',
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                Authorization: ` Bearer ${accessToken}`
+            },
+            body: JSON.stringify(bundleOutput)
+        }
+
+        const url = process.env.HAPI_BASE_URL;
+
+        try {
+            logging('Info', `Posting Bundle: ${bundleUUID}`)
+
+            const response = await fetch(url, options)
+            const jsonResponse = await response.json();
+            console.log(jsonResponse);
+
+        } catch(err) {
+            logging('Error', `Error in posting Bundle: ${bundleUUID}. ERROR: ${err}`)
+        }
+
+        // return postBundle
+    } else {
+        logging('Info', `No bundles to post`)
+    }
+
+
 }
-
-// Post the bundle to the server
-const postBundle = async function(req, res) {
-
-    const accessToken = await keycloak.accessToken.get();
-    const phnBundle = await generatePhnBundle();
     
-    const options = {
-        method: 'POST',
-        headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json',
-            Authorization: ` Bearer ${accessToken}`
-        },
-        body: JSON.stringify(phnBundle)
-    }
+// postPhnBundle().then(data => {
+//     console.log(data)
+// })
 
-    const url = process.env.HAPI_BASE_URL;
 
-    try {
-        logMessage = `PROCESS: \t ${new Date().toLocaleString()} \t Started the query for practitioner count \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
+// function logMessage() {
+//     logMessage = `Cron job executed at:, ${new Date().toLocaleString()} \n`
+//     fs.appendFile(logFileName, logMessage, function (err) {})    
+// }
 
-        const response = await fetch(url, options)
-        const jsonResponse = await response.json();
-        console.log(jsonResponse);
+// cron.schedule('*/2 * * * *', () => {
+//     logging('CRON', `CRON JOB EXECUTED`)
+    
+//     postPhnBundle()
+// });
 
-    } catch(err) {
-        logMessage = `ERROR : \t ${new Date().toLocaleString()} \t err \n`
-        fs.appendFile(logFileName, logMessage, function (err) {})
-    }
-
-}
-
-// postBundle();
-
-function logMessage() {
-    logMessage = `Cron job executed at:, ${new Date().toLocaleString()} \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})    
-}
-
-cron.schedule('*/2 * * * *', () => {
-    logMessage();
-    postBundle();
-});
-
-cron.schedule('* * * * *', () => {
-    logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
-    fs.appendFile(logFileName, logMessage, function (err) {})
-});
+// cron.schedule('* * * * *', () => {
+//     logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
+//     fs.appendFile(logFileName, logMessage, function (err) {})
+// });
 
 app.get('/generatePhn', (req, res) => {   
 
-    postBundle().then(x => {
+    logging('CRON', `CRON JOB EXECUTED`)
+
+    postPhnBundle().then(x => {
         // Send the sms
     })
 

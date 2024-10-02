@@ -41,6 +41,8 @@ const getAllPractitioners = async function() {
 
         const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true")
 
+        console.log("GETTING PRAC", getPractitioner)
+
         returnArray = []
 
         if(getPractitioner && getPractitioner.status == true) {
@@ -51,7 +53,8 @@ const getAllPractitioners = async function() {
                 let returnResult = "";
 
                 returnResult = {
-                    practitionerId: item.resource.id
+                    practitionerId: item.resource.id,
+                    keycloakUUID: item.resource.identifier[1].value
                 }
 
                 returnArray.push(returnResult)
@@ -78,6 +81,8 @@ const extractPrationerIds = async function() {
             
             logging('Info', `Started Identifiying Practitioners need PHN group to be generated`)
 
+            let newIndex = 0;
+
             const promises = allPractitionerIds.map(async (item, index) => {
 
                 logging('Info', `Fetching Groups for Practitioner resource: ${item.practitionerId}`)
@@ -88,7 +93,7 @@ const extractPrationerIds = async function() {
                 logging('Info', `Started Querying for PractionerDetails for Practitioner ID: ${item.practitionerId}`)
                 
                 // Fetch PractitionerDetail
-                const getPractitionerDetail = await getFhirResource("GET", "PractitionerDetail", "", `keycloak-uuid=${item.practitionerId}`)
+                const getPractitionerDetail = await getFhirResource("GET", "PractitionerDetail", "", `keycloak-uuid=${item.keycloakUUID}`)
                     
                 if(getGroupBundle && getPractitionerDetail && getPractitionerDetail.status == true) {
                     
@@ -98,9 +103,11 @@ const extractPrationerIds = async function() {
                     if(getGroupBundle.status == true) {
 
                         getGroupBundle.response.entry.forEach((groupStatusCheck) => {
+
                             if(groupStatusCheck.resource.active == true) {
                                 phnGroupCounts++
                             }
+
                         })
 
                     }
@@ -108,35 +115,48 @@ const extractPrationerIds = async function() {
                     if (getGroupBundle.status == false) {
                         phnGroupCounts = 0;
                     }
+                    
+                    if(phnGroupCounts < phnGroupLimit) {
 
-                    const careteams = getPractitionerDetail.response.entry[0].resource.fhir.careteams
-                        ? getPractitionerDetail.response.entry[0].resource.fhir.careteams : undefined
-                    const locations = getPractitionerDetail.response.entry[0].resource.fhir.locations
-                        ? getPractitionerDetail.response.entry[0].resource.fhir.locations : undefined
-                    const teams = getPractitionerDetail.response.entry[0].resource.fhir.teams
-                        ? getPractitionerDetail.response.entry[0].resource.fhir.teams : undefined
+                        newIndex++;
 
-                    if(careteams !== undefined && locations !== undefined && teams !== undefined) {
+                        const careteams = getPractitionerDetail.response.entry[0].resource.fhir.careteams
+                            ? getPractitionerDetail.response.entry[0].resource.fhir.careteams : undefined
+                        const locations = getPractitionerDetail.response.entry[0].resource.fhir.locations
+                            ? getPractitionerDetail.response.entry[0].resource.fhir.locations : undefined
+                        const teams = getPractitionerDetail.response.entry[0].resource.fhir.teams
+                            ? getPractitionerDetail.response.entry[0].resource.fhir.teams : undefined
 
-                        const careteamId = careteams[0].id
-                        const locationId = locations[0].id
-                        const teamId = teams[0].id
+                        if(careteams !== undefined && locations !== undefined && teams !== undefined) {
 
-                        let returnResult = "";
+                            const careteamId = careteams[0].id
+                            const locationId = locations[0].id
+                            const teamId = teams[0].id
 
-                        if (index < resourceProcessLimit && phnGroupCounts < phnGroupLimit) {
+                            // console.log(index)
+                            // console.log(newIndex)
+                            // console.log("Practitioner", item.practitionerId)
+                            // console.log("KeycloakUUID", item.keycloakUUID)
+                            // console.log("phnGroupCounts", phnGroupCounts)
+                            // console.log("PractitionerDetail", getPractitionerDetail)
+                            // console.log("PD_DETAILS", `CareTeam: ${careteamId} Location: ${locationId} Teams: ${teamId}`)
 
-                            returnResult = {
-                                practitionerId: item.practitionerId,
-                                phnGroupCount: phnGroupCounts,
-                                careTeamId: careteamId,
-                                locationId: locationId,
-                                teamId: teamId,
-                                // index: index
+                            let returnResult = "";
+
+                            if (newIndex < resourceProcessLimit && phnGroupCounts < phnGroupLimit) {
+
+                                returnResult = {
+                                    practitionerId: item.practitionerId,
+                                    phnGroupCount: phnGroupCounts,
+                                    careTeamId: careteamId,
+                                    locationId: locationId,
+                                    teamId: teamId,
+                                    // index: index
+                                }
+
+                                return returnResult;
+
                             }
-
-                            return returnResult;
-
                         }
                     }
                 
@@ -428,6 +448,8 @@ const postPhnBundle = async function() {
     // Fetch all the practioners need phn
     const fetchedPractitioners = await extractPrationerIds();
 
+    console.log(fetchedPractitioners);
+
     if(fetchedPractitioners && fetchedPractitioners.length > 0) {
 
         for await (const practitioner of fetchedPractitioners) {
@@ -558,8 +580,10 @@ const postPhnBundle = async function() {
 
 
 }
+
+// getAllPractitioners()
     
-// postPhnBundle().then(data => {
+// extractPrationerIds().then(data => {
 //     console.log(data)
 // })
 

@@ -157,6 +157,11 @@ const extractPrationerIds = async function() {
                                 return returnResult;
 
                             }
+                        } else {
+
+                            logging('Error', `Important resources links like careteams / location / teams missing`)
+                            return false;
+
                         }
                     }
                 
@@ -588,23 +593,6 @@ const postPhnBundle = async function() {
 generatePhnArray().then(data => {
     console.log(data)
 })
-
-
-// function logMessage() {
-//     logMessage = `Cron job executed at:, ${new Date().toLocaleString()} \n`
-//     fs.appendFile(logFileName, logMessage, function (err) {})    
-// }
-
-// cron.schedule('*/2 * * * *', () => {
-//     logging('CRON', `CRON JOB EXECUTED`)
-    
-//     postPhnBundle()
-// });
-
-// cron.schedule('* * * * *', () => {
-//     logMessage = `LIVE: NODE service live, ${new Date().toLocaleString()} \n`
-//     fs.appendFile(logFileName, logMessage, function (err) {})
-// });
 
 app.get('/generatePhn', (req, res) => {   
 

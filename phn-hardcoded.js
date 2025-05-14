@@ -39,29 +39,36 @@ const getAllPractitioners = async function() {
 
     try {
 
-        const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true")
+        // const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true")
+        const getPractitioner = await getFhirResource("GET", "Practitioner", "a45894f4-8406-47a9-bdc3-cb5fdb163922", "")
 
-        console.log("GETTING PRAC", getPractitioner)
+        // console.log("GETTING PRAC", getPractitioner.response)
+        // console.log(getPractitioner.response.identifier[1].value)
 
         returnArray = []
 
         if(getPractitioner && getPractitioner.status == true) {
 
-            getPractitioner.response.entry.forEach(item => {
-                logging('Info', `Adding Practitioner to array. Practitioner ID: ${item.resource.id}`)
+            // getPractitioner.response.entry.forEach(item => {
+            // getPractitioner.response.forEach(item => {
+                logging('Info', `Adding Practitioner to array. Practitioner ID: ${getPractitioner.response.id}`)
 
-                let returnResult = "";
+                // let returnResult = "";
 
-                returnResult = {
-                    practitionerId: item.resource.id,
-                    keycloakUUID: item.resource.identifier[1].value
+                let returnResult = {
+                    practitionerId: getPractitioner.response.id,
+                    keycloakUUID: getPractitioner.response.identifier[1].value
                 }
 
                 returnArray.push(returnResult)
-            })
+
+                // return returnArray
+                
+            // })
         }
 
-        return returnArray
+        return returnArray;
+        
 
     } catch(err) {
         logging('Error', `Error in fetching Practioners: ${err}`)
@@ -70,10 +77,16 @@ const getAllPractitioners = async function() {
     
 }
 
+// getAllPractitioners().then(data => {
+//     console.log(data)
+// })
+
 // Extract the Practioners id to whom the PHN groups needs to be generated
 const extractPrationerIds = async function() {
 
     const allPractitionerIds = await getAllPractitioners()
+
+    console.log("All Practitioner ID", allPractitionerIds)
 
     try {
 
@@ -215,55 +228,55 @@ const getAvailablePoi = async function () {
 
     }
 
-    if(createTables) {
+    // if(createTables) {
 
-        const pool = await pool.connect()
+    //     const pool = await pool.connect()
 
-        // Create tables if not exists (if enabled)
-        try {
+    //     // Create tables if not exists (if enabled)
+    //     try {
 
-            await pool.query(
-                `CREATE TABLE IF NOT EXISTS poi (
-                    id SERIAL PRIMARY KEY, 
-                    poi_number character varying(4) NOT NULL UNIQUE, 
-                    status character varying(20) NOT NULL,
-                    total_generated_phn_count integer NOT NULL,
-                    last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
-            )
+    //         await pool.query(
+    //             `CREATE TABLE IF NOT EXISTS poi (
+    //                 id SERIAL PRIMARY KEY, 
+    //                 poi_number character varying(4) NOT NULL UNIQUE, 
+    //                 status character varying(20) NOT NULL,
+    //                 total_generated_phn_count integer NOT NULL,
+    //                 last_updated timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
+    //         )
 
-            logging("Info", `Created or skipped table poi`)
+    //         logging("Info", `Created or skipped table poi`)
 
-        } catch (error) {
-            logging("Error", `Error in creating Database poi: ${error}`)
-        }
+    //     } catch (error) {
+    //         logging("Error", `Error in creating Database poi: ${error}`)
+    //     }
 
-        try {
+    //     try {
 
-            await pool.query(
-                `CREATE TABLE IF NOT EXISTS phn (
-                    id SERIAL PRIMARY KEY, 
-                    generated_phn character varying(11) NOT NULL UNIQUE, 
-                    generated_for character varying(100),
-                    generated_on timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
-            )
+    //         await pool.query(
+    //             `CREATE TABLE IF NOT EXISTS phn (
+    //                 id SERIAL PRIMARY KEY, 
+    //                 generated_phn character varying(11) NOT NULL UNIQUE, 
+    //                 generated_for character varying(100),
+    //                 generated_on timestamp without time zone DEFAULT CURRENT_TIMESTAMP NOT NULL);`
+    //         )
 
-            logging("Info", `Created or skipped table phn`)
+    //         logging("Info", `Created or skipped table phn`)
 
-        } catch (error) {
-            logging("Error", `Error in creating Database phn: ${error}`)
-        } finally {
-            pool.release();
-        }
+    //     } catch (error) {
+    //         logging("Error", `Error in creating Database phn: ${error}`)
+    //     } finally {
+    //         pool.release();
+    //     }
 
-    }
+    // }
 
-    const connection = await pool.connect()
+    // const connection = await pool.connect()
 
     // check for poi
     try {
 
-        const query = `SELECT * FROM poi WHERE status = 'active' AND total_generated_phn_count < ${maxPhnPerPoi} ORDER BY id ASC`;
-        const { rows } = await connection.query(query);
+        // const query = `SELECT * FROM poi WHERE status = 'active' AND total_generated_phn_count < ${maxPhnPerPoi} ORDER BY id ASC`;
+        // const { rows } = await connection.query(query);
 
 
         if(rows.length > 0) {
@@ -304,12 +317,15 @@ const generateUniquePhn = async function() {
 
     logging('Info', `Started generating unique PHN`)
 
-    const poiResponse = await getAvailablePoi(maxPhnPerPoi);
+    // const poiResponse = await getAvailablePoi(maxPhnPerPoi);
+    const poiResponse = true;
 
-    if(poiResponse && poiResponse.status == true) {
+    // if(poiResponse && poiResponse.status == true) {
+    if(poiResponse) {
 
-        poi = poiResponse.response.poiNumber
-        totalPhnGenerated = poiResponse.response.totalPhnGenerated
+        // poi = poiResponse.response.poiNumber
+        poi = "3053"
+        // totalPhnGenerated = poiResponse.response.totalPhnGenerated
 
         logging('Info', `Returned POI Info - POI Number: ${poi}`)
 
@@ -340,7 +356,7 @@ const generateUniquePhn = async function() {
 
         returnResult = {
             poi: poi,
-            totalPhnGenerated: totalPhnGenerated,
+            // totalPhnGenerated: totalPhnGenerated,
             randomString: randomString,
             initalPhn: initalPhn,
             checksum: checksum,
@@ -365,50 +381,51 @@ const generatePhnArray = async function() {
         const getPhn = await generateUniquePhn()
 
         let poi = getPhn.poi
-        let totalPhnGenerated = getPhn.totalPhnGenerated
+        // let totalPhnGenerated = getPhn.totalPhnGenerated
         let phn = getPhn.validation.phrase
         let isValid = getPhn.validation.isValid
 
         // Insert into db (if generated phn already exist, this should fail)
-        const connection = await pool.connect();
+        // const connection = await pool.connect();
 
         try {
 
-            const InsertPhn = `INSERT INTO phn (generated_phn) VALUES ($1);`;
-            const insertResult = await connection.query(InsertPhn, [phn])
+            // const InsertPhn = `INSERT INTO phn (generated_phn) VALUES ($1);`;
+            // const insertResult = await connection.query(InsertPhn, [phn])
 
-            if(insertResult.rowCount == 1) {
+            // if(insertResult.rowCount == 1) {
+            if(1 == 1) {
 
                 logging('Info', `PHN: ${phn} successfully inserted`)
 
                 // If db insertion success, then increment the generatedPhn count
-                totalPhnGenerated++
+                // totalPhnGenerated++
 
                 // update the db for the count if the totalPhnGenerated is < max value
-                if (totalPhnGenerated < maxPhnPerPoi) {
+                // if (totalPhnGenerated < maxPhnPerPoi) {
 
-                    const updatePoiCount = `UPDATE poi SET total_generated_phn_Count = $1 WHERE poi_number = $2;`;
-                    const updatePoiCountResult = await connection.query(updatePoiCount, [`${totalPhnGenerated}`, `${poi}`])
+                //     const updatePoiCount = `UPDATE poi SET total_generated_phn_Count = $1 WHERE poi_number = $2;`;
+                //     const updatePoiCountResult = await connection.query(updatePoiCount, [`${totalPhnGenerated}`, `${poi}`])
 
-                    if(updatePoiCountResult.rowCount == 1) {
+                //     if(updatePoiCountResult.rowCount == 1) {
 
-                        logging('Info', `Incremented the POI Generated count`)
+                //         logging('Info', `Incremented the POI Generated count`)
 
-                    }
+                //     }
 
-                // update the db and change status to inactive if the totalPhnGenerated is not < max value
-                } else {
+                // // update the db and change status to inactive if the totalPhnGenerated is not < max value
+                // } else {
 
-                    const updatePoiStatus = `UPDATE poi SET status = $1, total_generated_phn_Count = $2 WHERE poi_number = $3;`;
-                    const updatePoiStatusResult = await connection.query(updatePoiStatus, [`inactive`,`${totalPhnGenerated}`, `${poi}`])
+                //     const updatePoiStatus = `UPDATE poi SET status = $1, total_generated_phn_Count = $2 WHERE poi_number = $3;`;
+                //     const updatePoiStatusResult = await connection.query(updatePoiStatus, [`inactive`,`${totalPhnGenerated}`, `${poi}`])
 
-                    if(updatePoiStatusResult.rowCount == 1) {
+                //     if(updatePoiStatusResult.rowCount == 1) {
 
-                        logging('Info', `Update the Total phn generated and marked the status inactive`)
+                //         logging('Info', `Update the Total phn generated and marked the status inactive`)
 
-                    }
+                //     }
 
-                }
+                // }
 
                 // push to array
                 response = {
@@ -430,7 +447,7 @@ const generatePhnArray = async function() {
             logging('Error', `Something went wrong in query: ${error}`)
 
         } finally {
-            connection.release()
+            // connection.release()
         }
 
     }
@@ -585,9 +602,9 @@ const postPhnBundle = async function() {
 
 // getAllPractitioners()
     
-generatePhnArray().then(data => {
-    console.log(data)
-})
+// generatePhnArray().then(data => {
+//     console.log(data)
+// })
 
 
 // function logMessage() {
@@ -616,6 +633,10 @@ app.get('/generatePhn', (req, res) => {
 
     res.send('Running');    
     
+})
+
+postPhnBundle().then(x => {
+    // Send the sms
 })
 
 

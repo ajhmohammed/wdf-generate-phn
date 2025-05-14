@@ -39,9 +39,9 @@ const getAllPractitioners = async function() {
 
     try {
 
-        const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true")
+        const getPractitioner = await getFhirResource("GET", "Practitioner", "", "active=true&_count=1000", "")
 
-        console.log("GETTING PRAC", getPractitioner)
+        console.log("GETTING PRACTITIONERS", getPractitioner.response.entry)
 
         returnArray = []
 
@@ -585,9 +585,9 @@ const postPhnBundle = async function() {
 
 // getAllPractitioners()
     
-generatePhnArray().then(data => {
-    console.log(data)
-})
+// extractPrationerIds().then(data => {
+//     console.log(data)
+// })
 
 
 // function logMessage() {
